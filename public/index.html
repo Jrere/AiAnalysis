@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS · AI 股票分析终端</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700;900&display=swap');
+
+  :root {
+    --bg: #06080d;
+    --surface: rgba(14, 18, 28, 0.85);
+    --surface-solid: #0e121c;
+    --surface2: rgba(22, 28, 42, 0.7);
+    --surface2-solid: #161c2a;
+    --border: rgba(55, 65, 81, 0.4);
+    --border-light: rgba(75, 85, 99, 0.3);
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --accent-glow: rgba(99, 102, 241, 0.25);
+    --green: #10b981;
+    --green-glow: rgba(16, 185, 129, 0.2);
+    --red: #f43f5e;
+    --red-glow: rgba(244, 63, 94, 0.2);
+    --yellow: #f59e0b;
+    --cyan: #06b6d4;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --text3: #475569;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', 'Noto Sans SC', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Animated Background ===== */
+  .bg-layer {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+  }
+
+  .bg-layer::before {
+    content: '';
+    position: absolute;
+    width: 120vw;
+    height: 120vh;
+    top: -10vh;
+    left: -10vw;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 20%, rgba(99,102,241,0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 500px 500px at 80% 30%, rgba(6,182,212,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 400px 600px at 50% 80%, rgba(16,185,129,0.05) 0%, transparent 70%);
+    animation: bgFloat 25s ease-in-out infinite alternate;
+  }
+
+  @keyframes bgFloat {
+    0% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(-3%, 2%) scale(1.02); }
+    66% { transform: translate(2%, -3%) scale(0.98); }
+    100% { transform: translate(-2%, 1%) scale(1.01); }
+  }
+
+  /* Grid overlay */
+  .bg-grid {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(rgba(55,65,81,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(55,65,81,0.05) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+  }
+
+  /* ===== Layout ===== */
+  .app {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 8px 24px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--cyan));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: white;
+    box-shadow: 0 4px 20px var(--accent-glow);
+    letter-spacing: -1px;
+  }
+
+  .brand-text {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--text), var(--text2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .brand-sub {
+    font-size: 0.65rem;
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .sidebar-section {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text3);
+    padding: 16px 8px 6px;
+    font-weight: 600;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    color: var(--text2);
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    user-select: none;
+  }
+
+  .nav-item:hover {
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+  }
+
+  .nav-item.active {
+    background: rgba(99,102,241,0.1);
+    color: var(--accent-light);
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 20px;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+  }
+
+  .nav-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 16px 8px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .api-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text3);
+    padding: 8px 0;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red-glow);
+    transition: all 0.3s;
+  }
+
+  .status-dot.connected {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green-glow);
+  }
+
+  /* ===== Main Content ===== */
+  .main {
+    flex: 1;
+    margin-left: 280px;
+    padding: 32px 40px;
+    max-width: calc(100vw - 280px);
+  }
+
+  /* ===== Top Bar ===== */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+  }
+
+  .topbar-left h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .topbar-left p {
+    color: var(--text3);
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .topbar-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text3);
+    background: var(--surface);
+    padding: 8px 14px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+    letter-spacing: 0.5px;
+  }
+
+  /* ===== Glass Card ===== */
+  .glass {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .glass:hover {
+    border-color: rgba(99,102,241,0.2);
+    box-shadow: 0 0 40px rgba(99,102,241,0.04);
+  }
+
+  /* ===== Section: API Config ===== */
+  .api-panel {
+    padding: 24px 28px;
+    margin-bottom: 24px;
+  }
+
+  .api-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .api-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .api-icon-box {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.1));
+    border: 1px solid rgba(99,102,241,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+
+  .api-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .api-subtitle {
+    font-size: 0.78rem;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  .api-chevron {
+    font-size: 0.7rem;
+    color: var(--text3);
+    transition: transform 0.3s;
+    padding: 8px;
+  }
+
+  .api-chevron.open { transform: rotate(180deg); }
+
+  .api-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .api-body.open { grid-template-rows: 1fr; }
+
+  .api-body-inner {
+    overflow: hidden;
+  }
+
+  .api-form {
+    display: flex;
+    gap: 12px;
+    padding-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-grow { flex: 1; min-width: 200px; }
+
+  .field label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .input-wrap {
+    position: relative;
+  }
+
+  .input-wrap input,
+  .input-wrap select {
+    width: 100%;
+    padding: 11px 14px;
+    background: var(--surface2-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .input-wrap input:focus,
+  .input-wrap select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .input-wrap input::placeholder { color: var(--text3); font-family: 'Inter', sans-serif; }
+
+  /* ===== Buttons ===== */
+  .btn {
+    padding: 11px 24px;
+    border: none;
+    border-radius: var(--radius-xs);
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), transparent);
+    pointer-events: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #7c3aed);
+    color: white;
+    box-shadow: 0 2px 16px var(--accent-glow);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px var(--accent-glow);
+  }
+
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text2);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover {
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    border-color: var(--border-light);
+  }
+
+  /* ===== Section: Analysis Panel ===== */
+  .analysis-panel {
+    padding: 28px;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .panel-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(16,185,129,0.1));
+    border: 1px solid rgba(6,182,212,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+
+  .panel-title { font-weight: 700; font-size: 1.1rem; }
+
+  .panel-desc {
+    font-size: 0.8rem;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* Stock Input Row */
+  .stock-input-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .stock-input-row .field:first-child { flex: 2; min-width: 240px; }
+  .stock-input-row .field:nth-child(2) { flex: 0.8; min-width: 140px; }
+
+  /* Quick Picks */
+  .quick-picks {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+
+  .pick {
+    padding: 7px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text2);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pick:hover {
+    border-color: var(--accent);
+    color: var(--accent-light);
+    background: rgba(99,102,241,0.08);
+    transform: translateY(-1px);
+  }
+
+  .pick .pick-flag { font-size: 0.9rem; }
+
+  /* Dimension Chips */
+  .dim-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+
+  .dim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .dim-chip {
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dim-chip:hover {
+    border-color: rgba(99,102,241,0.3);
+    background: rgba(99,102,241,0.05);
+  }
+
+  .dim-chip.active {
+    border-color: var(--accent);
+    background: rgba(99,102,241,0.1);
+    box-shadow: 0 0 20px rgba(99,102,241,0.08);
+  }
+
+  .dim-chip .dim-icon {
+    font-size: 1.1rem;
+    width: 24px;
+    text-align: center;
+  }
+
+  .dim-chip .dim-text {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text2);
+  }
+
+  .dim-chip.active .dim-text { color: var(--accent-light); }
+
+  .dim-check {
+    margin-left: auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    transition: all 0.2s;
+    color: transparent;
+  }
+
+  .dim-chip.active .dim-check {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* Action Row */
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .btn-analyze {
+    padding: 14px 36px;
+    font-size: 0.95rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .action-hint {
+    font-size: 0.78rem;
+    color: var(--text3);
+  }
+
+  .action-hint kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    margin: 0 2px;
+  }
+
+  /* ===== Error ===== */
+  .error-box {
+    display: none;
+    padding: 14px 18px;
+    background: rgba(244,63,94,0.08);
+    border: 1px solid rgba(244,63,94,0.25);
+    border-radius: var(--radius-sm);
+    color: var(--red);
+    font-size: 0.88rem;
+    margin-bottom: 16px;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .error-box.visible { display: flex; }
+
+  .error-box .err-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+
+  /* ===== Loading ===== */
+  .loading-bar {
+    display: none;
+    margin-bottom: 20px;
+  }
+
+  .loading-bar.visible { display: block; }
+
+  .loading-track {
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .loading-fill {
+    height: 100%;
+    width: 30%;
+    background: linear-gradient(90deg, var(--accent), var(--cyan));
+    border-radius: 2px;
+    animation: loadSlide 1.5s ease-in-out infinite;
+  }
+
+  @keyframes loadSlide {
+    0% { transform: translateX(-100%); width: 30%; }
+    50% { width: 60%; }
+    100% { transform: translateX(400%); width: 30%; }
+  }
+
+  .loading-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+    color: var(--text3);
+  }
+
+  .loading-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
+  }
+
+  /* ===== Result ===== */
+  .result-area {
+    display: none;
+  }
+
+  .result-area.visible { display: block; }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .result-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--green);
+  }
+
+  .result-tag .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  .result-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 28px;
+    line-height: 1.85;
+    font-size: 0.92rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 650px;
+    overflow-y: auto;
+    font-family: 'Inter', 'Noto Sans SC', sans-serif;
+  }
+
+  .result-card::-webkit-scrollbar { width: 5px; }
+  .result-card::-webkit-scrollbar-track { background: transparent; }
+  .result-card::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Streaming cursor */
+  .streaming::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: var(--accent);
+    margin-left: 3px;
+    vertical-align: text-bottom;
+    animation: cursorBlink 0.7s step-end infinite;
+  }
+
+  @keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Markdown render */
+  .result-card h1, .result-card h2, .result-card h3 {
+    margin: 20px 0 10px;
+    font-weight: 700;
+    color: var(--text);
+    position: relative;
+  }
+
+  .result-card h1 { font-size: 1.3rem; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .result-card h2 { font-size: 1.15rem; }
+  .result-card h3 { font-size: 1.02rem; color: var(--text2); }
+
+  .result-card strong { color: var(--accent-light); font-weight: 600; }
+  .result-card em { color: var(--cyan); font-style: normal; }
+
+  .result-card ul, .result-card ol {
+    padding-left: 20px;
+    margin: 8px 0;
+  }
+
+  .result-card li { margin: 5px 0; }
+
+  .result-card li::marker {
+    color: var(--accent);
+  }
+
+  .result-card blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 8px 16px;
+    margin: 12px 0;
+    background: rgba(99,102,241,0.05);
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+    color: var(--text2);
+  }
+
+  .result-card hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+  }
+
+  .result-card code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface-solid);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+
+  /* ===== Mobile Hamburger ===== */
+  .hamburger {
+    display: none;
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 200;
+    width: 40px;
+    height: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 90;
+    backdrop-filter: blur(4px);
+  }
+
+  .mobile-overlay.visible { display: block; }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 900px) {
+    .sidebar {
+      transform: translateX(-100%);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .hamburger { display: flex; }
+    .main {
+      margin-left: 0;
+      max-width: 100vw;
+      padding: 24px 16px;
+      padding-top: 64px;
+    }
+    .dim-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 500px) {
+    .dim-grid { grid-template-columns: 1fr; }
+    .stock-input-row { flex-direction: column; }
+    .stock-input-row .field { min-width: 100% !important; }
+  }
+
+  /* ===== Section Pages ===== */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ===== API Modal ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.visible { display: flex; }
+
+  .modal {
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    width: 90%;
+    max-width: 520px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  }
+
+  .modal h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .modal p {
+    color: var(--text3);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  .modal .field { margin-bottom: 16px; }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+
+  /* ===== Ticker Tape ===== */
+  .ticker-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+    overflow: hidden;
+    position: relative;
+    margin: -32px -40px 24px;
+  }
+
+  .ticker-track {
+    display: flex;
+    gap: 40px;
+    animation: ticker 30s linear infinite;
+    width: max-content;
+  }
+
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .ticker-item .name { color: var(--text2); font-weight: 500; }
+  .ticker-item .price { color: var(--text); font-weight: 600; }
+
+  @keyframes ticker {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ===== Stats Row ===== */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+  }
+
+  .stat-card:hover {
+    border-color: rgba(99,102,241,0.2);
+    transform: translateY(-2px);
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 700;
+  }
+
+  .stat-change {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  .stat-change.up { color: var(--green); }
+  .stat-change.down { color: var(--red); }
+
+  @media (max-width: 700px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .ticker-bar { margin: -24px -16px 20px; }
+  }
+
+  /* ===== Disclaimer ===== */
+  .disclaimer {
+    text-align: center;
+    color: var(--text3);
+    font-size: 0.72rem;
+    margin-top: 40px;
+    padding: 20px;
+    border-top: 1px solid var(--border);
+    line-height: 1.6;
+  }
+
+  .disclaimer strong { color: var(--yellow); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- Background layers -->
+<div class="bg-layer"></div>
+<div class="bg-grid"></div>
+
+<!-- Mobile hamburger -->
+<div class="hamburger" id="hamburger" onclick="toggleSidebar()">☰</div>
+<div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
+
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">N</div>
+      <div>
+        <div class="brand-text">NEXUS</div>
+        <div class="brand-sub">Stock Analyzer</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">功能</div>
+    <div class="nav-item active" data-page="analyze" onclick="switchPage('analyze')">
+      <span class="nav-icon">📊</span> 股票分析
+    </div>
+    <div class="nav-item" data-page="history" onclick="switchPage('history')">
+      <span class="nav-icon">📁</span> 分析记录
+    </div>
+
+    <div class="sidebar-section">关于</div>
+    <div class="nav-item" data-page="about" onclick="switchPage('about')">
+      <span class="nav-icon">💡</span> 使用说明
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="api-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">正在检查服务...</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <!-- Ticker Tape -->
+    <div class="ticker-bar">
+      <div class="ticker-track" id="tickerTrack"></div>
+    </div>
+
+    <!-- Page: Analyze -->
+    <div class="page active" id="page-analyze">
+      <div class="topbar">
+        <div class="topbar-left">
+          <h1>📊 AI 股票分析</h1>
+          <p>输入股票代码，DeepSeek 帮你深度拆解</p>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-time" id="clock"></div>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-row" id="statsRow">
+        <div class="stat-card">
+          <div class="stat-label">分析次数</div>
+          <div class="stat-value" id="statCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">覆盖市场</div>
+          <div class="stat-value">3</div>
+          <div class="stat-change">US / CN / HK</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">分析维度</div>
+          <div class="stat-value">6</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">AI 模型</div>
+          <div class="stat-value" style="font-size:1rem; font-family:inherit">DeepSeek</div>
+        </div>
+      </div>
+
+      <!-- Analysis Panel -->
+      <div class="glass analysis-panel">
+        <div class="panel-header">
+          <div class="panel-icon">🔍</div>
+          <div>
+            <div class="panel-title">新建分析</div>
+            <div class="panel-desc">选择股票和分析维度，AI 将实时生成分析报告</div>
+          </div>
+        </div>
+
+        <!-- Stock Input -->
+        <div class="stock-input-row">
+          <div class="field">
+            <label>股票代码</label>
+            <div class="input-wrap">
+              <input type="text" id="stockCode" placeholder="例如 AAPL、600519、09988" onkeydown="if(event.key==='Enter')startAnalysis()">
+            </div>
+          </div>
+          <div class="field">
+            <label>市场</label>
+            <div class="input-wrap">
+              <select id="market">
+                <option value="auto">🤖 自动识别</option>
+                <option value="us">🇺🇸 美股</option>
+                <option value="cn">🇨🇳 A股</option>
+                <option value="hk">🇭🇰 港股</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Picks -->
+        <div class="quick-picks">
+          <span class="pick" onclick="pickStock('AAPL','us')"><span class="pick-flag">🍎</span> AAPL</span>
+          <span class="pick" onclick="pickStock('TSLA','us')"><span class="pick-flag">🚗</span> TSLA</span>
+          <span class="pick" onclick="pickStock('NVDA','us')"><span class="pick-flag">💚</span> NVDA</span>
+          <span class="pick" onclick="pickStock('MSFT','us')"><span class="pick-flag">🪟</span> MSFT</span>
+          <span class="pick" onclick="pickStock('600519','cn')"><span class="pick-flag">🍷</span> 600519</span>
+          <span class="pick" onclick="pickStock('000858','cn')"><span class="pick-flag">🍶</span> 000858</span>
+          <span class="pick" onclick="pickStock('300750','cn')"><span class="pick-flag">🔋</span> 300750</span>
+          <span class="pick" onclick="pickStock('09988','hk')"><span class="pick-flag">🛒</span> 09988</span>
+        </div>
+
+        <!-- Dimension Select -->
+        <div class="dim-label">分析维度（可多选）</div>
+        <div class="dim-grid">
+          <div class="dim-chip active" data-type="fundamental" onclick="toggleDim(this)">
+            <span class="dim-icon">📋</span>
+            <span class="dim-text">基本面</span>
+            <span class="dim-check">✓</span>
+          </div>
+          <div class="dim-chip active" data-type="technical" onclick="toggleDim(this)">
+            <span class="dim-icon">📈</span>
+            <span class="dim-text">技术面</span>
+            <span class="dim-check">✓</span>
+          </div>
+          <div class="dim-chip active" data-type="news" onclick="toggleDim(this)">
+            <span class="dim-icon">📰</span>
+            <span class="dim-text">市场情绪</span>
+            <span class="dim-check">✓</span>
+          </div>
+          <div class="dim-chip" data-type="risk" onclick="toggleDim(this)">
+            <span class="dim-icon">⚠️</span>
+            <span class="dim-text">风险评估</span>
+            <span class="dim-check">✓</span>
+          </div>
+          <div class="dim-chip" data-type="peer" onclick="toggleDim(this)">
+            <span class="dim-icon">🏢</span>
+            <span class="dim-text">同业对比</span>
+            <span class="dim-check">✓</span>
+          </div>
+          <div class="dim-chip" data-type="catalyst" onclick="toggleDim(this)">
+            <span class="dim-icon">🚀</span>
+            <span class="dim-text">催化剂</span>
+            <span class="dim-check">✓</span>
+          </div>
+        </div>
+
+        <!-- Action -->
+        <div class="action-row">
+          <button class="btn btn-primary btn-analyze" id="analyzeBtn" onclick="startAnalysis()">
+            <span id="btnIcon">🤖</span>
+            <span id="btnText">开始分析</span>
+          </button>
+          <span class="action-hint">按 <kbd>Enter</kbd> 快速开始</span>
+        </div>
+
+        <!-- Error -->
+        <div class="error-box" id="errorBox">
+          <span class="err-icon">⚠️</span>
+          <span id="errorText"></span>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-bar" id="loadingBar">
+          <div class="loading-track"><div class="loading-fill"></div></div>
+          <div class="loading-info">
+            <div class="loading-pulse"></div>
+            <span id="loadingText">正在连接 DeepSeek 分析引擎...</span>
+          </div>
+        </div>
+
+        <!-- Result -->
+        <div class="result-area" id="resultArea">
+          <div class="result-header">
+            <div class="result-tag"><span class="dot"></span> 分析完成</div>
+            <button class="btn btn-ghost" onclick="copyResult()" style="padding:6px 14px; font-size:0.78rem">
+              📋 复制报告
+            </button>
+          </div>
+          <div class="result-card" id="resultCard"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page: History -->
+    <div class="page" id="page-history">
+      <div class="topbar">
+        <div class="topbar-left">
+          <h1>📁 分析记录</h1>
+          <p>查看历史分析报告</p>
+        </div>
+      </div>
+      <div class="glass" style="padding:28px">
+        <div id="historyList" style="color:var(--text3); font-size:0.9rem; text-align:center; padding:40px 0">
+          暂无记录，完成一次分析后将自动保存
+        </div>
+      </div>
+    </div>
+
+    <!-- Page: About -->
+    <div class="page" id="page-about">
+      <div class="topbar">
+        <div class="topbar-left">
+          <h1>💡 使用说明</h1>
+          <p>快速上手指南</p>
+        </div>
+      </div>
+      <div class="glass" style="padding:32px; line-height:2; color:var(--text2); font-size:0.92rem">
+        <h3 style="color:var(--text); margin-bottom:12px">🚀 快速开始</h3>
+        <ol style="padding-left:20px; margin-bottom:24px">
+          <li>点击左侧 <strong style="color:var(--accent-light)">⚙️ API 配置</strong>，填入你的 DeepSeek API Key</li>
+          <li>在分析页面输入股票代码（如 <code>AAPL</code>、<code>600519</code>）</li>
+          <li>选择你关注的分析维度（可多选）</li>
+          <li>点击「开始分析」，等待 AI 实时生成报告</li>
+        </ol>
+        <h3 style="color:var(--text); margin-bottom:12px">📌 支持的市场</h3>
+        <ul style="padding-left:20px; margin-bottom:24px">
+          <li><strong style="color:var(--text)">🇺🇸 美股</strong> — 输入 ticker 如 AAPL、TSLA、NVDA</li>
+          <li><strong style="color:var(--text)">🇨🇳 A股</strong> — 输入 6 位代码如 600519、000858</li>
+          <li><strong style="color:var(--text)">🇭🇰 港股</strong> — 输入 5 位代码如 09988、00700</li>
+        </ul>
+        <h3 style="color:var(--text); margin-bottom:12px">🔒 安全说明</h3>
+        <p>API Key 仅保存在服务端，不会暴露给浏览器。所有 AI 请求均通过后端代理转发。</p>
+        <div style="margin-top:24px; padding:16px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:var(--radius-xs); color:var(--yellow); font-size:0.85rem">
+          ⚠️ <strong>免责声明</strong>：AI 分析结果仅供参考，不构成任何投资建议。股市有风险，投资需谨慎。
+        </div>
+      </div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <strong>⚠️</strong> AI 分析仅供参考，不构成投资建议。投资有风险，决策需谨慎。<br>
+      NEXUS Stock Analyzer · Powered by DeepSeek
+    </div>
+  </main>
+</div>
+
+<script>
+// ===== State =====
+let isAnalyzing = false;
+let abortController = null;
+let analysisCount = 0;
+let history = [];
+
+// ===== Init =====
+(async function init() {
+  // 检查后端服务状态
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    if (data.status === 'ok' && data.hasKey) {
+      document.getElementById('statusDot').classList.add('connected');
+      document.getElementById('statusText').textContent = '服务已连接';
+    } else {
+      document.getElementById('statusText').textContent = 'API Key 未配置';
+    }
+  } catch (e) {
+    document.getElementById('statusText').textContent = '服务未连接';
+  }
+
+  const savedCount = localStorage.getItem('nexus_count');
+  const savedHistory = localStorage.getItem('nexus_history');
+  if (savedCount) {
+    analysisCount = parseInt(savedCount);
+    document.getElementById('statCount').textContent = analysisCount;
+  }
+  if (savedHistory) {
+    try { history = JSON.parse(savedHistory); renderHistory(); } catch(e) {}
+  }
+
+  updateClock();
+  setInterval(updateClock, 1000);
+  initTicker();
+})();
+
+// ===== Clock =====
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+}
+
+// ===== Ticker =====
+function initTicker() {
+  const items = [
+    { name: 'AAPL', price: '189.84', change: '+1.23%', up: true },
+    { name: 'TSLA', price: '248.42', change: '-0.87%', up: false },
+    { name: 'NVDA', price: '131.28', change: '+3.45%', up: true },
+    { name: '600519', price: '1688.00', change: '+0.52%', up: true },
+    { name: '09988', price: '82.35', change: '-1.15%', up: false },
+    { name: 'MSFT', price: '415.60', change: '+0.91%', up: true },
+    { name: 'AMZN', price: '186.13', change: '+2.01%', up: true },
+    { name: '000858', price: '148.50', change: '-0.33%', up: false },
+  ];
+
+  const track = document.getElementById('tickerTrack');
+  const html = items.map(i => `
+    <div class="ticker-item">
+      <span class="name">${i.name}</span>
+      <span class="price">$${i.price}</span>
+      <span style="color:${i.up ? 'var(--green)' : 'var(--red)'}; font-weight:600">${i.change}</span>
+    </div>
+  `).join('');
+  track.innerHTML = html + html;
+}
+
+// ===== Sidebar =====
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('mobileOverlay').classList.toggle('visible');
+}
+
+// ===== Page Switch =====
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(`page-${page}`).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('mobileOverlay').classList.remove('visible');
+}
+
+// ===== Quick Stock =====
+function pickStock(code, market) {
+  document.getElementById('stockCode').value = code;
+  document.getElementById('market').value = market;
+}
+
+// ===== Dimension Toggle =====
+function toggleDim(el) { el.classList.toggle('active'); }
+
+function getSelectedTypes() {
+  return Array.from(document.querySelectorAll('.dim-chip.active')).map(c => c.dataset.type);
+}
+
+const TYPE_MAP = {
+  fundamental: '基本面分析（营收、利润、PE、PB、ROE等财务指标）',
+  technical: '技术面分析（K线形态、均线系统、MACD、RSI、布林带等）',
+  news: '市场情绪面（近期新闻、舆情热度、资金流向、北向资金）',
+  risk: '风险评估（估值风险、行业风险、政策风险、黑天鹅因素）',
+  peer: '同业对比（与同行业核心竞争对手的对比分析）',
+  catalyst: '催化剂分析（可能推动股价的事件、业绩拐点、政策利好）'
+};
+
+function getMarketLabel(code, market) {
+  if (market !== 'auto') {
+    const m = { us: '美股', cn: 'A股', hk: '港股' };
+    return `${m[market]} ${code.toUpperCase()}`;
+  }
+  if (/^\d{6}$/.test(code)) return `A股 ${code}`;
+  if (/^0\d{4}$/.test(code)) return `港股 ${code}`;
+  return `美股 ${code.toUpperCase()}`;
+}
+
+// ===== Analysis =====
+async function startAnalysis() {
+  if (isAnalyzing) {
+    if (abortController) abortController.abort();
+    setAnalyzing(false);
+    return;
+  }
+
+  const stockCode = document.getElementById('stockCode').value.trim();
+  if (!stockCode) { showError('请输入股票代码'); return; }
+
+  const types = getSelectedTypes();
+  if (types.length === 0) { showError('请至少选择一个分析维度'); return; }
+
+  const market = document.getElementById('market').value;
+  const marketLabel = getMarketLabel(stockCode, market);
+
+  hideError();
+  setAnalyzing(true);
+
+  const resultArea = document.getElementById('resultArea');
+  const card = document.getElementById('resultCard');
+  resultArea.classList.add('visible');
+  card.textContent = '';
+  card.classList.add('streaming');
+
+  const typeDesc = types.map(t => TYPE_MAP[t]).join('\n');
+
+  const systemPrompt = `你是一位资深股票分析师，拥有 CFA 持证和 15 年实战经验。请用专业但通俗的语言进行分析。
+
+分析要求：
+- 使用 Markdown 格式（## 标题、**加粗**、- 列表等）
+- 每个维度用 ## 二级标题分隔
+- 给出明确的观点，不要模棱两可
+- 引用具体数据和指标
+- 最后用一个表格总结核心指标
+- 给出操作建议（🟢买入 / 🟡持有 / 🔴减持 / ⚪观望）和信心指数（1-10）
+- 当前日期：${new Date().toLocaleDateString('zh-CN')}
+
+⚠️ 在分析最开头声明：「本分析基于 AI 推理，仅供参考，不构成投资建议。」`;
+
+  const userPrompt = `请对 **${marketLabel}** 进行深度分析。
+
+分析维度：
+${typeDesc}
+
+请从以上维度逐一深入分析，最后给出综合评级和操作建议。`;
+
+  abortController = new AbortController();
+  const startTime = Date.now();
+
+  try {
+    document.getElementById('loadingText').textContent = `正在分析 ${marketLabel}，请稍候...`;
+
+    // 走后端代理，不暴露 API Key
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 4096
+      }),
+      signal: abortController.signal
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      let msg = `服务错误 (${response.status})`;
+      try {
+        const errJson = JSON.parse(errText);
+        msg = errJson.error || msg;
+      } catch(e) {}
+      throw new Error(msg);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        if (trimmed === 'data: [DONE]') continue;
+        try {
+          const json = JSON.parse(trimmed.slice(6));
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            renderMarkdown(card, fullText);
+            card.scrollTop = card.scrollHeight;
+          }
+        } catch(e) {}
+      }
+    }
+
+    renderMarkdown(card, fullText);
+    card.classList.remove('streaming');
+
+    // Save history
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    analysisCount++;
+    localStorage.setItem('nexus_count', analysisCount);
+    document.getElementById('statCount').textContent = analysisCount;
+
+    history.unshift({
+      code: stockCode,
+      market: marketLabel,
+      date: new Date().toLocaleString('zh-CN'),
+      text: fullText.slice(0, 200) + '...',
+      elapsed
+    });
+    if (history.length > 20) history = history.slice(0, 20);
+    localStorage.setItem('nexus_history', JSON.stringify(history));
+    renderHistory();
+
+  } catch (err) {
+    card.classList.remove('streaming');
+    if (err.name === 'AbortError') {
+      card.textContent += '\n\n⏹ 分析已中止。';
+    } else {
+      showError(err.message);
+      resultArea.classList.remove('visible');
+    }
+  } finally {
+    setAnalyzing(false);
+    abortController = null;
+  }
+}
+
+// ===== Markdown Renderer =====
+function renderMarkdown(el, text) {
+  let html = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^[•\-\*] (.+)$/gm, '<li>$1</li>')
+    .replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
+    .replace(/^---+$/gm, '<hr>')
+    .replace(/\n/g, '<br>');
+
+  html = html.replace(/(<li>.*?<\/li>(?:<br>)?)+/g, m => {
+    return '<ul>' + m.replace(/<br>/g, '') + '</ul>';
+  });
+
+  el.innerHTML = html;
+}
+
+// ===== History =====
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (history.length === 0) {
+    list.innerHTML = '<div style="padding:40px 0; color:var(--text3)">暂无记录</div>';
+    return;
+  }
+  list.innerHTML = history.map((h, i) => `
+    <div style="display:flex; align-items:center; gap:16px; padding:16px 0; ${i < history.length - 1 ? 'border-bottom:1px solid var(--border)' : ''}">
+      <div style="flex:1">
+        <div style="font-weight:600; font-size:0.95rem; margin-bottom:4px">${h.market}</div>
+        <div style="font-size:0.78rem; color:var(--text3)">${h.date} · 耗时 ${h.elapsed}s</div>
+      </div>
+      <div style="font-size:0.82rem; color:var(--text3); max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${h.text}</div>
+    </div>
+  `).join('');
+}
+
+// ===== Copy =====
+function copyResult() {
+  const card = document.getElementById('resultCard');
+  const text = card.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.result-header .btn-ghost');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✅ 已复制';
+    setTimeout(() => btn.innerHTML = orig, 2000);
+  });
+}
+
+// ===== UI Helpers =====
+function setAnalyzing(state) {
+  isAnalyzing = state;
+  const btn = document.getElementById('analyzeBtn');
+  const btnText = document.getElementById('btnText');
+  const btnIcon = document.getElementById('btnIcon');
+  const loading = document.getElementById('loadingBar');
+
+  if (state) {
+    btnText.textContent = '停止分析';
+    btnIcon.textContent = '⏹';
+    loading.classList.add('visible');
+  } else {
+    btnText.textContent = '开始分析';
+    btnIcon.textContent = '🤖';
+    loading.classList.remove('visible');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorBox').classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('errorBox').classList.remove('visible');
+}
+</script>
+</body>
+</html>
